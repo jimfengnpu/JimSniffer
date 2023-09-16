@@ -1,0 +1,78 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.25"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "JimSniffer",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "JimSniffer::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-JimSniffer-Debug-899a66300ff4d1ecac54.json",
+					"name" : "JimSniffer",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "JimSniffer_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-JimSniffer_autogen-Debug-73391d7f0a0ff5c8de1a.json",
+					"name" : "JimSniffer_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "JimSniffer_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-JimSniffer_autogen_timestamp_deps-Debug-891b76867b41598e6367.json",
+					"name" : "JimSniffer_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/jimfeng/CLionProjects/JimSniffer/cmake-build-debug",
+		"source" : "/home/jimfeng/CLionProjects/JimSniffer"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 4
+	}
+}
