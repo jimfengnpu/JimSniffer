@@ -1,9 +1,0 @@
-# ninja log v5
-3	13	1694882993727870617	/home/jimfeng/CLionProjects/JimSniffer/cmake-build-debug/JimSniffer_autogen/timestamp	1f7558168f103b61
-3	13	1694882993727870617	JimSniffer_autogen/timestamp	1f7558168f103b61
-3	13	1694882993727870617	/home/jimfeng/CLionProjects/JimSniffer/cmake-build-debug/JimSniffer_autogen/mocs_compilation.cpp	1f7558168f103b61
-3	13	1694882993727870617	JimSniffer_autogen/mocs_compilation.cpp	1f7558168f103b61
-27	40	1694882292265782802	CMakeFiles/JimSniffer.dir/JimSniffer_autogen/mocs_compilation.cpp.o	5519abb989a34d3f
-0	281	1694884571099119662	build.ninja	1a2329c8e02a8ea1
-14	309	1694882994019870281	JimSniffer	40ea788a7a6d7263
-27	1326	1694882293549601595	CMakeFiles/JimSniffer.dir/main.cpp.o	3f8672ce44289f37
