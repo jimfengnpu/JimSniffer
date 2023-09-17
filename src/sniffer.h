@@ -5,13 +5,20 @@
 #ifndef JIM_SNIFFER_SNIFFER_H
 #define JIM_SNIFFER_SNIFFER_H
 #include <pcap.h>
+#include <iostream>
+#include <vector>
+using namespace std;
 
 class Sniffer {
-public:
     pcap_if_t *devices, *currentDevice;
+public:
+    int deviceCount;
+    int selectedDeviceIndex;
     bool isListening;
     Sniffer();
     void loadDevices();
+    int getDevicesInfo(vector<string>& info);
+    void setDevice(int index);
 };
 
 

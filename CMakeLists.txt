@@ -14,7 +14,10 @@ find_package(Qt5 COMPONENTS
         Widgets
         REQUIRED)
 
-add_executable(JimSniffer main.cpp sniffer.cpp sniffer.h)
+add_executable(JimSniffer src/main.cpp src/sniffer.cpp src/sniffer.h src/frame.cpp src/frame.h)
+if (WIN32)
+    add_definitions(-DWIN)
+endif ()
 target_link_libraries(JimSniffer
         Qt5::Core
         Qt5::Gui
