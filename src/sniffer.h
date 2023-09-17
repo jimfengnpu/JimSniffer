@@ -7,13 +7,15 @@
 #include <pcap.h>
 #include <iostream>
 #include <vector>
+
 using namespace std;
 
 class Sniffer {
+    pcap_t *captureData;
     pcap_if_t *devices, *currentDevice;
 public:
     int deviceCount;
-    int selectedDeviceIndex;
+    int currentDeviceIndex;
     bool isListening;
     Sniffer();
     void loadDevices();

@@ -19,7 +19,7 @@ void Sniffer::loadDevices() {
 
 void Sniffer::setDevice(int index) {
     pcap_if_t *dev = devices;
-    selectedDeviceIndex = index;
+    currentDeviceIndex = index;
     while(dev && (index -- )){
         dev = dev->next;
     }
@@ -29,11 +29,11 @@ void Sniffer::setDevice(int index) {
 int Sniffer::getDevicesInfo(vector<string> &info) {
     pcap_if_t *dev = devices;
     while(dev) {
-        if(dev->description == nullptr) {
-            info.push_back(dev->name);
-        } else {
-            info.push_back(dev->description + "(" + dev->name + ")");
-        }
+        string s(dev->name);
+//        if(dev->description != nullptr) {
+//            s += string("(") + dev->description + ")";
+//        }
+        info.push_back(s);
         dev = dev->next;
     }
     return 0;
