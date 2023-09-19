@@ -7,5 +7,5 @@
 
 Frame::Frame(const struct pcap_pkthdr *header, const u_char *data) {
     this->header = new pcap_pkthdr(*header);
-    strncpy((char* )raw_data, (char*)data, header->caplen);
+    memcpy((char* )raw_data, (char*)data, header->caplen);
 }

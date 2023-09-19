@@ -7,7 +7,7 @@
 JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     // UI/View
     // Window Init
-    setGeometry(300, 300, 1000, 600);
+    setGeometry(300, 300, 1000, 700);
     auto *centralWidget = new QWidget(this);
     setCentralWidget(centralWidget);
     auto *vLayout = new QVBoxLayout(centralWidget);
@@ -19,6 +19,8 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     startListenBtn = new QPushButton("开始", this);
     endListenBtn = new QPushButton("结束", this);
     packetList = new QTableWidget(this);
+    protocolWindow = new QTreeWidget(this);
+    hexDataWindow = new QTextEdit(this);
     // Layout
     auto *dockLayout = new QHBoxLayout(nullptr);
     vLayout->addWidget(packetList);
@@ -27,7 +29,13 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     toolBar->addWidget(startListenBtn);
     toolBar->addWidget(endListenBtn);
     devSelector->resize(200, 40);
-    packetList->resize(1000, 500);
+    packetList->resize(1000, 300);
+    dockLayout->addWidget(protocolWindow);
+    dockLayout->addWidget(hexDataWindow);
+    protocolWindow->resize(500, 300);
+    hexDataWindow->resize(500, 300);
+    hexDataWindow->setReadOnly(true);
+    hexDataWindow->setFont(QFont("Noto Mono", 12));
     // Model
     sniffer = new Sniffer();
     packetList->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -38,9 +46,11 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
         "No.", "Src", "Dst", "Protocol", "Length", "Info"
     }));
     packetList->horizontalHeader()->setDefaultSectionSize(80);
-    packetList->setColumnWidth(1, 160);
-    packetList->setColumnWidth(2, 160);
+    packetList->verticalHeader()->setVisible(false);
+    packetList->setColumnWidth(SRC_COLUMN, 160);
+    packetList->setColumnWidth(DST_COLUMN, 160);
     packetList->horizontalHeader()->setStretchLastSection(true);
+    protocolWindow->header()->setVisible(false);
     // Controller
     setMenu();
     setController();
@@ -68,6 +78,10 @@ void JmSniffer::setController() {
             [=]{sniffer->startListening(); updateWidgetState();});
     connect(endListenBtn, &QPushButton::clicked, this,
             [=]{sniffer->stopListening(); updateWidgetState();});
+    connect(sniffer, &Sniffer::onPacketReceive, this,
+            [=](Packet* packet){ onPacketReceive(packet); });
+    connect(packetList, &QTableWidget::cellClicked, this,
+            [=](int row, int col){ onPacketSelected(row);});
 }
 
 void JmSniffer::setMenu() {
@@ -77,5 +91,39 @@ void JmSniffer::setMenu() {
 void JmSniffer::updateWidgetState() const {
     bool listening = sniffer->isListening;
     startListenBtn->setDisabled(listening);
+    devSelector->setDisabled(listening);
     endListenBtn->setEnabled(listening);
+}
+
+void JmSniffer::onPacketReceive(Packet *packet) const {
+    int row = packetList->rowCount();
+    packetList->insertRow(row);
+    // fill Data
+    packetList->setItem(row, NO_COLUMN, TABLE_CELL_DATA(to_string(packet->frameId)));
+    packetList->setItem(row, SRC_COLUMN, TABLE_CELL_DATA(packet->src));
+    packetList->setItem(row, DST_COLUMN, TABLE_CELL_DATA(packet->dst));
+    packetList->setItem(row, LEN_COLUMN, TABLE_CELL_DATA(to_string(packet->frame->header->caplen)));
+    packetList->setItem(row, INFO_COLUMN, TABLE_CELL_DATA(packet->info));
+}
+
+void JmSniffer::onPacketSelected(int row) const {
+    assert(row < sniffer->packetList.size());
+    Packet *packet = sniffer->packetList[row];
+    while(protocolWindow->topLevelItemCount()){
+        protocolWindow->takeTopLevelItem(0);
+    }
+    for(auto item: packet->protocolInfo){
+        protocolWindow->addTopLevelItem(item);
+    }
+    protocolWindow->expandAll();
+    stringstream ss;
+    for(int i = 0; i < packet->frame->header->caplen;) {
+        ss << std::setfill('0') << std::setw(2) << std::hex << (int) packet->frame->raw_data[i];
+        if((++i)%16 == 0) {
+            ss << endl;
+        }else {
+            ss << " ";
+        }
+    }
+    hexDataWindow->setText(QString::fromStdString(ss.str()));
 }

@@ -3,10 +3,13 @@
 //
 
 #include "sniffer.h"
-
+Sniffer* instance;
+int packetCount;
 static char errBuf[PCAP_ERRBUF_SIZE];
 
-Sniffer::Sniffer() = default;
+Sniffer::Sniffer(QObject* parent): QObject(parent){
+    instance = this;
+};
 
 void Sniffer::loadDevices() {
     if(pcap_findalldevs(&devices, errBuf) == PCAP_ERROR){
@@ -47,7 +50,7 @@ void Sniffer::startListening() {
     }
     int linkType = pcap_datalink(captureAdaptor);
     if(linkType != DLT_EN10MB){
-        puts("Warning: 当前网卡传输层协议不是Ethernet,可能无法正确解析");
+        puts("Warning: 当前网卡传输层协议不是Ethernet, 无法正确解析");
     }
     tmpDumpFileName = strdup("/tmp/tmp_fileXXXXXX");
     mkstemp(tmpDumpFileName);
@@ -63,10 +66,11 @@ void Sniffer::stopListening() {
 
 void Sniffer::startCapture() {
     pcap_dumper* dumper = nullptr;
+    packetCount = 0;
     if(tmpDumpFileName != nullptr){
         dumper = pcap_dump_open(captureAdaptor, tmpDumpFileName);
     }
-    auto *loop_thread = new thread([](Sniffer* sniffer, pcap_dumper* dumper){
+    auto *loop_thread = new class thread([](Sniffer* sniffer, pcap_dumper* dumper){
         pcap_loop(sniffer->captureAdaptor, 0, Sniffer::packet_handler, (u_char*)dumper);
         }, this, dumper);
     loop_thread->detach();
@@ -82,11 +86,8 @@ void Sniffer::loadCapFile(const string &path) {
 }
 
 void Sniffer::packet_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *pkt_data) {
-    // todo: parse packet
-    struct tm* packet_time = localtime(&header->ts.tv_sec);
-    char timeStr[64];
-    strftime(timeStr, sizeof timeStr, "%y-%m-%d %T", packet_time);
-    printf("%s  %d\n", timeStr, header->caplen);
+
+    printf("%d\n", header->caplen);
     int i = 0;
     while(i < header->caplen)
     {
@@ -98,6 +99,10 @@ void Sniffer::packet_handler(u_char *user, const struct pcap_pkthdr *header, con
     if(user != nullptr){
         pcap_dump(user, header, pkt_data);
     }
+    auto* frame = new Frame(header, pkt_data);
+    auto* packet = new Packet(++packetCount, frame);
+    instance->packetList.push_back(packet);
+    emit instance->onPacketReceive(packet);
 }
 
 void Sniffer::saveCapFile(const string &path) {
@@ -111,4 +116,3 @@ void Sniffer::saveCapFile(const string &path) {
     tmpFile.close();
     tmpDumpFileName = nullptr;
 }
-
