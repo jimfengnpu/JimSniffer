@@ -14,7 +14,9 @@ find_package(Qt5 COMPONENTS
         Widgets
         REQUIRED)
 
-add_executable(JimSniffer src/main.cpp src/sniffer.cpp src/sniffer.h src/frame.cpp src/frame.h)
+add_executable(JimSniffer
+        src/main.cpp src/sniffer.cpp src/sniffer.h src/frame.cpp src/frame.h
+        src/sniffer_window.cpp src/sniffer_window.h src/packet.cpp src/packet.h)
 if (WIN32)
     add_definitions(-DWIN)
 endif ()
