@@ -7,6 +7,7 @@
 #include <QTreeWidgetItem>
 #include <QListWidgetItem>
 #include <sstream>
+#include <iostream>
 #include "frame.h"
 
 #ifdef __linux__
@@ -32,22 +33,30 @@ public:
     PacketInfo(const std::string& info, int start, int end);
 };
 
+typedef struct {
+    u_char *start;
+    uint len;
+} PacketDataInfo;
+
 class Packet {
 public:
     int frameId;
     string src;
     string dst;
+    string proto;
     string info;
     Frame *frame;
+    uint length;
+    vector<PacketDataInfo> data;
     vector<PacketInfo*> protocolInfo;
     explicit Packet(int id, Frame *frame);
     void parse();
-    void parse_ip(u_char *start);
-    void parse_tcp(u_char *start);
-    void parse_udp(u_char *start);
-    void parse_icmp(u_char *start);
-    void parse_http(u_char *start);
-    void parse_arp(u_char *start);
+    void parse_ip(u_char *start, int baseOffset);
+    void parse_tcp(u_char *start, int baseOffset);
+    void parse_udp(u_char *start, int baseOffset);
+    void parse_icmp(u_char *start, int baseOffset);
+    void parse_http(u_char *start, int baseOffset);
+    void parse_arp(u_char *start, int baseOffset);
 };
 
 

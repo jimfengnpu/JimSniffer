@@ -39,7 +39,7 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     // Model
     sniffer = new Sniffer();
     packetList->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    packetList->setSelectionMode(QAbstractItemView::SingleSelection);
+    packetList->setSelectionMode(QAbstractItemView::ContiguousSelection);
     packetList->setShowGrid(false);
     packetList->setColumnCount(6);
     packetList->setHorizontalHeaderLabels(QStringList({
@@ -51,6 +51,7 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     packetList->setColumnWidth(DST_COLUMN, 160);
     packetList->horizontalHeader()->setStretchLastSection(true);
     protocolWindow->header()->setVisible(false);
+    protocolWindow->setSelectionMode(QAbstractItemView::SingleSelection);
     // Controller
     setMenu();
     setController();
@@ -82,6 +83,19 @@ void JmSniffer::setController() {
             [=](Packet* packet){ onPacketReceive(packet); });
     connect(packetList, &QTableWidget::cellClicked, this,
             [=](int row, int col){ onPacketSelected(row);});
+    connect(protocolWindow, &QTreeWidget::itemSelectionChanged, this,
+            [=]{
+                auto list = protocolWindow->selectedItems();
+                if(list.length() < 1){
+                    return;
+                }
+                auto info = (PacketInfo* )list[0];
+                auto cursor = hexDataWindow->textCursor();
+                cursor.clearSelection();
+                cursor.setPosition(info->start*3);
+                cursor.setPosition(info->end*3-1, QTextCursor::KeepAnchor);
+                hexDataWindow->setTextCursor(cursor);
+            });
 }
 
 void JmSniffer::setMenu() {
@@ -102,12 +116,17 @@ void JmSniffer::onPacketReceive(Packet *packet) const {
     packetList->setItem(row, NO_COLUMN, TABLE_CELL_DATA(to_string(packet->frameId)));
     packetList->setItem(row, SRC_COLUMN, TABLE_CELL_DATA(packet->src));
     packetList->setItem(row, DST_COLUMN, TABLE_CELL_DATA(packet->dst));
-    packetList->setItem(row, LEN_COLUMN, TABLE_CELL_DATA(to_string(packet->frame->header->caplen)));
+    packetList->setItem(row, PROTO_COLUMN, TABLE_CELL_DATA(packet->proto));
+    packetList->setItem(row, LEN_COLUMN, TABLE_CELL_DATA(to_string(packet->length)));
     packetList->setItem(row, INFO_COLUMN, TABLE_CELL_DATA(packet->info));
 }
 
 void JmSniffer::onPacketSelected(int row) const {
     assert(row < sniffer->packetList.size());
+    packetList->setRangeSelected(
+            QTableWidgetSelectionRange(0, 0, packetList->rowCount(), 5), false);
+    packetList->setRangeSelected(
+            QTableWidgetSelectionRange(row, 0, row, 5), true);
     Packet *packet = sniffer->packetList[row];
     while(protocolWindow->topLevelItemCount()){
         protocolWindow->takeTopLevelItem(0);
@@ -117,12 +136,20 @@ void JmSniffer::onPacketSelected(int row) const {
     }
     protocolWindow->expandAll();
     stringstream ss;
-    for(int i = 0; i < packet->frame->header->caplen;) {
-        ss << std::setfill('0') << std::setw(2) << std::hex << (int) packet->frame->raw_data[i];
+    auto it = packet->data.begin();
+    uint cnt = 0;
+    for(int i = 0; i < packet->length && it != packet->data.end();) {
+        ss << std::setfill('0') << std::setw(2) << std::hex << (int) it->start[cnt];
         if((++i)%16 == 0) {
             ss << endl;
         }else {
             ss << " ";
+        }
+        if(it->len == cnt) {
+            it++;
+            cnt = 0;
+        }else {
+            cnt ++;
         }
     }
     hexDataWindow->setText(QString::fromStdString(ss.str()));
