@@ -8,6 +8,7 @@
 #include <QListWidgetItem>
 #include <sstream>
 #include <iostream>
+#include <iomanip>
 #include "frame.h"
 
 #ifdef __linux__
@@ -31,6 +32,7 @@ public:
     int start;
     int end;
     PacketInfo(const std::string& info, int start, int end);
+    int addSubInfo(const string& info, int s, int len);
 };
 
 typedef struct {

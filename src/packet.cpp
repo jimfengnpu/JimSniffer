@@ -8,6 +8,11 @@ PacketInfo::PacketInfo(const std::string& info, int start, int end):start(start)
     setText(0, QString::fromStdString(info));
 }
 
+int PacketInfo::addSubInfo(const string &info, int s, int len) {
+    addChild(new PacketInfo(info, s, s +len));
+    return start + len;
+}
+
 Packet::Packet(int id, Frame *frame): frameId(id), length(0){
     this->frame = frame;
     parse();
@@ -27,6 +32,20 @@ string getIpAddrInfo(uchar* addr){
     return ip;
 }
 
+string getInfoByMap(const map<int, string>& mp, int value){
+    try{
+        return mp.at(value);
+    }catch (exception&){
+    }
+    return "Unknown";
+}
+
+string getHexValue(int value, int byteSize) {
+    stringstream ss;
+    ss << setfill('0') << setw(2*byteSize) << hex << value;
+    return "0x" + ss.str();
+}
+
 void Packet::parse() {
     char timeStr[64];
     data.push_back({frame->raw_data, frame->header->caplen});
@@ -44,24 +63,22 @@ void Packet::parse() {
     info = infoStr;
     auto ethInfo = new PacketInfo(infoStr, 0, 14);
     protocolInfo.push_back(ethInfo);
-    ethInfo->addChild(new PacketInfo(string("Dst: ") + dMac, 0, 6));
-    ethInfo->addChild(new PacketInfo(string("Src: ") + sMac, 6, 12));
-    string typeStr = "Type: ";
+    ethInfo->addSubInfo(string("Dst: ") + dMac, 0, 6);
+    ethInfo->addSubInfo(string("Src: ") + sMac, 6, 6);
     auto nextStart = frame->raw_data + 14;
+    ethInfo->addSubInfo("Type: " + getInfoByMap({
+                                                        {ETHERTYPE_IP,  "IP"},
+                                                        {ETHERTYPE_ARP, "ARP"}
+                                                }, ethType), 12, 2);
     switch (ethType) {
         case ETHERTYPE_IP:
-            typeStr += "IPv4";
-            ethInfo->addChild(new PacketInfo(typeStr, 12, 14));
             parse_ip(nextStart, 14);
             break;
         case ETHERTYPE_ARP:
-            typeStr += "ARP";
-            ethInfo->addChild(new PacketInfo(typeStr, 12, 14));
             parse_arp(nextStart, 14);
             break;
         default:
-            typeStr += "Unknown";
-            ethInfo->addChild(new PacketInfo(typeStr, 12, 14));
+            break;
     }
 }
 
@@ -73,10 +90,18 @@ void Packet::parse_ip(u_char *start, int baseOffset) {
     auto totLen = ntohs(ipHdr->tot_len);
     auto ident = ntohs(ipHdr->id);
     auto frag = ntohs(ipHdr->frag_off);
+    auto ttl = ipHdr->ttl;
+    auto protocol = ipHdr->protocol;
+    auto hdrCheck = ipHdr->check;
     auto sAddr = ipHdr->saddr;
     auto dAddr = ipHdr->daddr;
-    auto frag_flag = frag & (~IP_OFFMASK);
-    auto frag_off = frag & IP_OFFMASK;
+    auto protoStr = getInfoByMap({
+                                         {IPPROTO_TCP,  "TCP"},
+                                         {IPPROTO_UDP,  "UDP"},
+                                         {IPPROTO_ICMP, "ICMP"}
+                                 }, protocol);
+    auto fragFlag = frag & (~IP_OFFMASK);
+    auto fragOff = frag & IP_OFFMASK;
     auto sAddrStr = getIpAddrInfo((uchar*)&sAddr);
     auto dAddrStr = getIpAddrInfo((uchar*)&dAddr);
     auto ipType = "IPv" + to_string(version);
@@ -90,6 +115,21 @@ void Packet::parse_ip(u_char *start, int baseOffset) {
     info = ipInfoStr;
     auto ipInfo = new PacketInfo(ipInfoStr, baseOffset, baseOffset + hdrLen);
     protocolInfo.push_back(ipInfo);
+    baseOffset = ipInfo->addSubInfo(ipType + " Header Len:" + to_string(hdrLen),
+                                    baseOffset, 1);
+    baseOffset = ipInfo->addSubInfo("Type of Service Field: " + getHexValue(tos, 2),
+                                    baseOffset, 1);
+    baseOffset = ipInfo->addSubInfo("Total Length: " + to_string(totLen),
+                                    baseOffset, 2);
+    baseOffset = ipInfo->addSubInfo("Identification: " + getHexValue(ident, 2),
+                                    baseOffset, 2);
+    baseOffset = ipInfo->addSubInfo("Flag: " + getInfoByMap({
+        {IP_DF, "Don't fragment"},
+        {IP_MF, "More fragments"},
+        {0, "No more fragment"}
+    }, fragFlag) + ",Fragment Offset:" + to_string(fragOff*8), baseOffset, 2);
+    baseOffset = ipInfo->addSubInfo("TTL:" + to_string(ttl), baseOffset, 1);
+
 }
 
 void Packet::parse_tcp(u_char *start, int baseOffset) {
