@@ -71,7 +71,7 @@ void Sniffer::startCapture() {
         dumper = pcap_dump_open(captureAdaptor, tmpDumpFileName);
     }
     auto *loop_thread = new class thread([](Sniffer* sniffer, pcap_dumper* dumper){
-        pcap_loop(sniffer->captureAdaptor, 0, Sniffer::packet_handler, (u_char*)dumper);
+        pcap_loop(sniffer->captureAdaptor, 0, Sniffer::packetHandler, (u_char *) dumper);
         }, this, dumper);
     loop_thread->detach();
     qDebug() << "start capture" << Qt::endl;
@@ -85,7 +85,7 @@ void Sniffer::loadCapFile(const string &path) {
     startCapture();
 }
 
-void Sniffer::packet_handler(u_char *user, const struct pcap_pkthdr *header, const u_char *pkt_data) {
+void Sniffer::packetHandler(u_char *user, const struct pcap_pkthdr *header, const u_char *pkt_data) {
 
     printf("%d\n", header->caplen);
     int i = 0;

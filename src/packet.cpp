@@ -4,16 +4,17 @@
 
 #include "packet.h"
 
-PacketInfo::PacketInfo(const std::string& info, int start, int end):start(start),end(end) {
+PacketInfo::PacketInfo(const std::string& info, int start, int end, bool reassembled):
+    start(start),end(end),reassembled(reassembled) {
     setText(0, QString::fromStdString(info));
 }
 
 int PacketInfo::addSubInfo(const string &info, int s, int len) {
     addChild(new PacketInfo(info, s, s +len));
-    return start + len;
+    return s + len;
 }
 
-Packet::Packet(int id, Frame *frame): frameId(id), length(0){
+Packet::Packet(int id, Frame *frame): frameId(id), length(0), parsedLength(0){
     this->frame = frame;
     parse();
 }
@@ -52,9 +53,11 @@ void Packet::parse() {
     length += frame->header->caplen;
     struct tm* packet_time = localtime(& frame->header->ts.tv_sec);
     auto* macHeader = (ether_header *)frame->raw_data;
+
     auto dMac = getMacInfo((u_char*)&macHeader->ether_dhost);
     auto sMac = getMacInfo((u_char*)&macHeader->ether_shost);
     auto ethType = ntohs(macHeader->ether_type);
+
     string infoStr = "Frame time:";
     strftime(timeStr, sizeof timeStr, "%y-%m-%d %T", packet_time);
     infoStr += string(timeStr) + " Src: " + sMac + " Dst: " + dMac;
@@ -70,19 +73,20 @@ void Packet::parse() {
                                                         {ETHERTYPE_IP,  "IP"},
                                                         {ETHERTYPE_ARP, "ARP"}
                                                 }, ethType), 12, 2);
+    parsedLength = 14;
     switch (ethType) {
         case ETHERTYPE_IP:
-            parse_ip(nextStart, 14);
+            parseIP(nextStart, 14);
             break;
         case ETHERTYPE_ARP:
-            parse_arp(nextStart, 14);
+            parseARP(nextStart, 14);
             break;
         default:
             break;
     }
 }
 
-void Packet::parse_ip(u_char *start, int baseOffset) {
+void Packet::parseIP(u_char *start, int baseOffset) {
     auto ipHdr = (iphdr*) start;
     auto version = ipHdr->version;
     auto hdrLen = ipHdr->ihl * 4;
@@ -92,7 +96,7 @@ void Packet::parse_ip(u_char *start, int baseOffset) {
     auto frag = ntohs(ipHdr->frag_off);
     auto ttl = ipHdr->ttl;
     auto protocol = ipHdr->protocol;
-    auto hdrCheck = ipHdr->check;
+    auto hdrCheck = ntohs(ipHdr->check);
     auto sAddr = ipHdr->saddr;
     auto dAddr = ipHdr->daddr;
     auto protoStr = getInfoByMap({
@@ -117,7 +121,7 @@ void Packet::parse_ip(u_char *start, int baseOffset) {
     protocolInfo.push_back(ipInfo);
     baseOffset = ipInfo->addSubInfo(ipType + " Header Len:" + to_string(hdrLen),
                                     baseOffset, 1);
-    baseOffset = ipInfo->addSubInfo("Type of Service Field: " + getHexValue(tos, 2),
+    baseOffset = ipInfo->addSubInfo("Type of Service Field: " + getHexValue(tos, 1),
                                     baseOffset, 1);
     baseOffset = ipInfo->addSubInfo("Total Length: " + to_string(totLen),
                                     baseOffset, 2);
@@ -129,25 +133,60 @@ void Packet::parse_ip(u_char *start, int baseOffset) {
         {0, "No more fragment"}
     }, fragFlag) + ",Fragment Offset:" + to_string(fragOff*8), baseOffset, 2);
     baseOffset = ipInfo->addSubInfo("TTL:" + to_string(ttl), baseOffset, 1);
+    baseOffset = ipInfo->addSubInfo("Protocol:" + protoStr, baseOffset, 1);
+    baseOffset = ipInfo->addSubInfo("Header Checksum:" + getHexValue(hdrCheck, 2),
+                                    baseOffset, 2);
+    baseOffset = ipInfo->addSubInfo("Src Addr:" + sAddrStr, baseOffset, 4);
+    baseOffset = ipInfo->addSubInfo("Dst Addr:" + dAddrStr, baseOffset, 4);
+    parsedLength = baseOffset;
+    if(fragFlag != IP_DF){
+        info += "[fragment]";
+        ipInfo->addSubInfo("Fragment Data", baseOffset, (int)frame->header->caplen - baseOffset);
+        return;
+    }
 
 }
 
-void Packet::parse_tcp(u_char *start, int baseOffset) {
+void Packet::parseTCP(u_char *start, int baseOffset) {
 
 }
 
-void Packet::parse_udp(u_char *start, int baseOffset) {
+void Packet::parseUDP(u_char *start, int baseOffset) {
 
 }
 
-void Packet::parse_icmp(u_char *start, int baseOffset) {
+void Packet::parseICMP(u_char *start, int baseOffset) {
 
 }
 
-void Packet::parse_http(u_char *start, int baseOffset) {
+void Packet::parseHTTP(u_char *start, int baseOffset) {
 
 }
 
-void Packet::parse_arp(u_char *start, int baseOffset) {
+void Packet::parseARP(u_char *start, int baseOffset) {
 
+}
+
+string Packet::getData(bool reassembled) {
+    stringstream ss;
+    auto it = data.begin();
+    if(reassembled){
+        it++;
+    }
+    uint cnt = 0;
+    for(int i = 0; (i < length && !reassembled) || (it != data.end() && reassembled);) {
+        ss << std::setfill('0') << std::setw(2) << std::hex << (int) it->start[cnt];
+        if((++i)%16 == 0) {
+            ss << endl;
+        }else {
+            ss << " ";
+        }
+        if(it->len == cnt) {
+            it++;
+            cnt = 0;
+        }else {
+            cnt ++;
+        }
+    }
+    return ss.str();
 }

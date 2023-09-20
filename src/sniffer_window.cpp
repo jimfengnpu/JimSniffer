@@ -38,6 +38,7 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     hexDataWindow->setFont(QFont("Noto Mono", 12));
     // Model
     sniffer = new Sniffer();
+    selectedPacket = nullptr;
     packetList->setEditTriggers(QAbstractItemView::NoEditTriggers);
     packetList->setSelectionMode(QAbstractItemView::ContiguousSelection);
     packetList->setShowGrid(false);
@@ -90,6 +91,9 @@ void JmSniffer::setController() {
                     return;
                 }
                 auto info = (PacketInfo* )list[0];
+                if(info->reassembled) {
+                    hexDataWindow->setText(QString::fromStdString(selectedPacket->getData(true)));
+                }
                 auto cursor = hexDataWindow->textCursor();
                 cursor.clearSelection();
                 cursor.setPosition(info->start*3);
@@ -121,13 +125,14 @@ void JmSniffer::onPacketReceive(Packet *packet) const {
     packetList->setItem(row, INFO_COLUMN, TABLE_CELL_DATA(packet->info));
 }
 
-void JmSniffer::onPacketSelected(int row) const {
+void JmSniffer::onPacketSelected(int row) {
     assert(row < sniffer->packetList.size());
     packetList->setRangeSelected(
             QTableWidgetSelectionRange(0, 0, packetList->rowCount(), 5), false);
     packetList->setRangeSelected(
             QTableWidgetSelectionRange(row, 0, row, 5), true);
     Packet *packet = sniffer->packetList[row];
+    selectedPacket = packet;
     while(protocolWindow->topLevelItemCount()){
         protocolWindow->takeTopLevelItem(0);
     }
@@ -135,22 +140,5 @@ void JmSniffer::onPacketSelected(int row) const {
         protocolWindow->addTopLevelItem(item);
     }
     protocolWindow->expandAll();
-    stringstream ss;
-    auto it = packet->data.begin();
-    uint cnt = 0;
-    for(int i = 0; i < packet->length && it != packet->data.end();) {
-        ss << std::setfill('0') << std::setw(2) << std::hex << (int) it->start[cnt];
-        if((++i)%16 == 0) {
-            ss << endl;
-        }else {
-            ss << " ";
-        }
-        if(it->len == cnt) {
-            it++;
-            cnt = 0;
-        }else {
-            cnt ++;
-        }
-    }
-    hexDataWindow->setText(QString::fromStdString(ss.str()));
+    hexDataWindow->setText(QString::fromStdString(packet->getData()));
 }

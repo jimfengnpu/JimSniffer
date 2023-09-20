@@ -37,13 +37,14 @@ public:
     QPushButton *startListenBtn;
     QPushButton *endListenBtn;
     Sniffer *sniffer;
+    Packet *selectedPacket;
     explicit JmSniffer(QWidget *parent);
     void setMenu();
     void setController();
     void updateDevices() const;
     void updateWidgetState() const;
     void onPacketReceive(Packet* packet) const;
-    void onPacketSelected(int row) const;
+    void onPacketSelected(int row);
 };
 
 

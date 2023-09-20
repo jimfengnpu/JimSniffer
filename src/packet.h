@@ -29,9 +29,10 @@ using namespace std;
 
 class PacketInfo: public QTreeWidgetItem{
 public:
+    bool reassembled;
     int start;
     int end;
-    PacketInfo(const std::string& info, int start, int end);
+    PacketInfo(const std::string& info, int start, int end, bool reassembled = false);
     int addSubInfo(const string& info, int s, int len);
 };
 
@@ -49,16 +50,18 @@ public:
     string info;
     Frame *frame;
     uint length;
+    uint parsedLength;
     vector<PacketDataInfo> data;
     vector<PacketInfo*> protocolInfo;
     explicit Packet(int id, Frame *frame);
+    string getData(bool reassembled = false);
     void parse();
-    void parse_ip(u_char *start, int baseOffset);
-    void parse_tcp(u_char *start, int baseOffset);
-    void parse_udp(u_char *start, int baseOffset);
-    void parse_icmp(u_char *start, int baseOffset);
-    void parse_http(u_char *start, int baseOffset);
-    void parse_arp(u_char *start, int baseOffset);
+    void parseIP(u_char *start, int baseOffset);
+    void parseTCP(u_char *start, int baseOffset);
+    void parseUDP(u_char *start, int baseOffset);
+    void parseICMP(u_char *start, int baseOffset);
+    void parseHTTP(u_char *start, int baseOffset);
+    void parseARP(u_char *start, int baseOffset);
 };
 
 
