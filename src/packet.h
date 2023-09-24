@@ -7,6 +7,7 @@
 #include <QTreeWidgetItem>
 #include <QListWidgetItem>
 #include <sstream>
+#include <list>
 #include <iostream>
 #include <iomanip>
 #include "frame.h"
@@ -38,7 +39,7 @@ public:
 
 typedef struct {
     u_char *start;
-    uint len;
+    int len;
 } PacketDataInfo;
 
 class Packet {
@@ -49,12 +50,20 @@ public:
     string proto;
     string info;
     Frame *frame;
-    uint length;
-    uint parsedLength;
+    iphdr *ipHdr = nullptr;
+    int ipFragFlag = 0;
+    int ipFragOff = 0;
+    int length;
+    int parsedLength;
     vector<PacketDataInfo> data;
+
+    // normal first:Frame data, other: reassembled data
     vector<PacketInfo*> protocolInfo;
     explicit Packet(int id, Frame *frame);
     string getData(bool reassembled = false);
+    bool getReassembledRaw(uchar* dstData, int len, int offset = 0);
+    int getReassembledLength();
+    bool setIPFragmentDone();
     void parse();
     void parseIP(u_char *start, int baseOffset);
     void parseTCP(u_char *start, int baseOffset);
@@ -64,5 +73,18 @@ public:
     void parseARP(u_char *start, int baseOffset);
 };
 
+struct IPFragmentInfo{
+    Packet *packet;
+    friend bool operator == (const IPFragmentInfo& a, const IPFragmentInfo& b){
+        auto ipA = a.packet->ipHdr;
+        auto ipB = b.packet->ipHdr;
+        return (ipA->id == ipB->id &&
+                ipA->saddr == ipB->saddr &&
+                ipA->daddr == ipB->daddr &&
+                ipA->protocol == ipB->protocol
+        );
+    }
+};
 
+typedef list< list< IPFragmentInfo> > IPFragmentQueue;
 #endif //JIM_SNIFFER_PACKET_H

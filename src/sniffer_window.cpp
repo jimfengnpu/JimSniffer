@@ -91,9 +91,7 @@ void JmSniffer::setController() {
                     return;
                 }
                 auto info = (PacketInfo* )list[0];
-                if(info->reassembled) {
-                    hexDataWindow->setText(QString::fromStdString(selectedPacket->getData(true)));
-                }
+                hexDataWindow->setText(QString::fromStdString(selectedPacket->getData(info->reassembled)));
                 auto cursor = hexDataWindow->textCursor();
                 cursor.clearSelection();
                 cursor.setPosition(info->start*3);
