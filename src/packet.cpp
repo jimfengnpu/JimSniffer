@@ -4,15 +4,17 @@
 
 #include "packet.h"
 
+#include <utility>
+
 IPFragmentQueue ipFragments;
 
-PacketInfo::PacketInfo(const std::string& info, int start, int end, bool reassembled):
-    start(start),end(end),reassembled(reassembled) {
+PacketInfo::PacketInfo(const std::string& info, int start, int end, string key,  bool reassembled):
+    start(start),end(end),key(std::move(key)),reassembled(reassembled) {
     setText(0, QString::fromStdString(info));
 }
 
-int PacketInfo::addSubInfo(const string &info, int s, int len) {
-    addChild(new PacketInfo(info, s, s +len, reassembled));
+int PacketInfo::addSubInfo(const string &info, int s, int len, string infoKey) {
+    addChild(new PacketInfo(info, s, s +len, infoKey, reassembled));
     return s + len;
 }
 
@@ -72,10 +74,10 @@ void Packet::parse() {
     src = sMac;
     dst = dMac;
     info = infoStr;
-    auto ethInfo = new PacketInfo(infoStr, 0, 14);
+    auto ethInfo = new PacketInfo(infoStr, 0, 14, "eth");
     protocolInfo.push_back(ethInfo);
-    ethInfo->addSubInfo(string("Dst: ") + dMac, 0, 6);
-    ethInfo->addSubInfo(string("Src: ") + sMac, 6, 6);
+    ethInfo->addSubInfo(string("Dst: ") + dMac, 0, 6, "dst");
+    ethInfo->addSubInfo(string("Src: ") + sMac, 6, 6, "src");
     auto nextStart = frame->raw_data + 14;
     ethInfo->addSubInfo("Type: " + getInfoByMap({
                                                         {ETHERTYPE_IP,  "IP"},
@@ -127,7 +129,7 @@ void Packet::parseIP(u_char *start, int baseOffset) {
     info = ipInfoStr;
     ipFragFlag = fragFlag;
     ipFragOff = fragOff;
-    auto ipInfo = new PacketInfo(ipInfoStr, baseOffset, baseOffset + hdrLen);
+    auto ipInfo = new PacketInfo(ipInfoStr, baseOffset, baseOffset + hdrLen, "ip");
     protocolInfo.push_back(ipInfo);
     baseOffset = ipInfo->addSubInfo(ipType + " Header Len:" + to_string(hdrLen),
                                     baseOffset, 1);
@@ -146,8 +148,8 @@ void Packet::parseIP(u_char *start, int baseOffset) {
     baseOffset = ipInfo->addSubInfo("Protocol:" + protoStr, baseOffset, 1);
     baseOffset = ipInfo->addSubInfo("Header Checksum:" + getHexValue(hdrCheck, 2),
                                     baseOffset, 2);
-    baseOffset = ipInfo->addSubInfo("Src Addr:" + sAddrStr, baseOffset, 4);
-    baseOffset = ipInfo->addSubInfo("Dst Addr:" + dAddrStr, baseOffset, 4);
+    baseOffset = ipInfo->addSubInfo("Src Addr:" + sAddrStr, baseOffset, 4, "src");
+    baseOffset = ipInfo->addSubInfo("Dst Addr:" + dAddrStr, baseOffset, 4, "dst");
     parsedLength = baseOffset;
     start = frame->raw_data + baseOffset;
     if(fragFlag != IP_DF){
@@ -175,6 +177,9 @@ void Packet::parseIP(u_char *start, int baseOffset) {
 }
 
 void Packet::parseTCP(u_char *start, int baseOffset) {
+    auto *tcpHdr = (tcphdr*)start;
+
+
 }
 
 void Packet::parseUDP(u_char *start, int baseOffset) {
@@ -200,7 +205,7 @@ void Packet::parseICMP(u_char *start, int baseOffset) {
     }, icmpType);
 
     auto icmpInfo = new PacketInfo(string("ICMP") + (reassembled?" (reassembled)":""),
-                                   baseOffset, baseOffset + len, reassembled);
+                                   baseOffset, baseOffset + len, "icmp", reassembled);
     protocolInfo.push_back(icmpInfo);
     proto = "ICMP";
     info = icmpTypeStr;

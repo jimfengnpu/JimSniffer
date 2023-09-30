@@ -66,7 +66,6 @@ void Sniffer::stopListening() {
 
 void Sniffer::startCapture() {
     pcap_dumper* dumper = nullptr;
-    packetCount = 0;
     if(tmpDumpFileName != nullptr){
         dumper = pcap_dump_open(captureAdaptor, tmpDumpFileName);
     }
@@ -115,4 +114,12 @@ void Sniffer::saveCapFile(const string &path) {
     saveFile.close();
     tmpFile.close();
     tmpDumpFileName = nullptr;
+}
+
+void Sniffer::clearFrame() {
+    for(auto packet: packetList) {
+        delete packet->frame->header;
+    }
+    packetList.clear();
+    packetCount = 0;
 }

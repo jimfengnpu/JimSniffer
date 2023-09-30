@@ -40,7 +40,8 @@ JmSniffer::JmSniffer(QWidget *parent) : QMainWindow(parent){
     sniffer = new Sniffer();
     selectedPacket = nullptr;
     packetList->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    packetList->setSelectionMode(QAbstractItemView::ContiguousSelection);
+    packetList->setSelectionMode(QAbstractItemView::SingleSelection);
+    packetList->setSelectionBehavior(QAbstractItemView::SelectRows);
     packetList->setShowGrid(false);
     packetList->setColumnCount(6);
     packetList->setHorizontalHeaderLabels(QStringList({
@@ -125,10 +126,10 @@ void JmSniffer::onPacketReceive(Packet *packet) const {
 
 void JmSniffer::onPacketSelected(int row) {
     assert(row < sniffer->packetList.size());
-    packetList->setRangeSelected(
-            QTableWidgetSelectionRange(0, 0, packetList->rowCount(), 5), false);
-    packetList->setRangeSelected(
-            QTableWidgetSelectionRange(row, 0, row, 5), true);
+//    packetList->setRangeSelected(
+//            QTableWidgetSelectionRange(0, 0, packetList->rowCount(), 5), false);
+//    packetList->setRangeSelected(
+//            QTableWidgetSelectionRange(row, 0, row, 5), true);
     Packet *packet = sniffer->packetList[row];
     selectedPacket = packet;
     while(protocolWindow->topLevelItemCount()){

@@ -33,6 +33,7 @@ public:
     void setDevice(int index);
     void startListening();
     void stopListening();
+    void clearFrame();
     void saveCapFile(const string& path);
     void loadCapFile(const string& path);
     static void packetHandler(u_char *user, const struct pcap_pkthdr *header, const u_char *pkt_data);

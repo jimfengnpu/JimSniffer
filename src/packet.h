@@ -30,11 +30,12 @@ using namespace std;
 
 class PacketInfo: public QTreeWidgetItem{
 public:
+    string key;
     bool reassembled;
     int start;
     int end;
-    PacketInfo(const std::string& info, int start, int end, bool reassembled = false);
-    int addSubInfo(const string& info, int s, int len);
+    PacketInfo(const std::string& info, int start, int end, string key, bool reassembled = false);
+    int addSubInfo(const string& info, int s, int len, string infoKey="");
 };
 
 typedef struct {
