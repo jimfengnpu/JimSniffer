@@ -79,7 +79,7 @@ class Main(QMainWindow):
 
     def set_controller(self):
         self.devSelector.currentIndexChanged.connect(self.sniffer.set_device)
-        self.startBtn.clicked.connect(lambda: (self.sniffer.start_listening(), self.update_state()))
+        self.startBtn.clicked.connect(lambda: (self.sniffer.load_cap("/home/jimfeng/test.pcap"), self.update_state()))
         self.endBtn.clicked.connect(lambda: (self.sniffer.stop_listening(), self.update_state()))
         self.packetView.cellClicked.connect(lambda r, c: self.on_packet_selected(r))
         self.protocolView.itemSelectionChanged.connect(lambda: self.on_info_selected())

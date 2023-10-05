@@ -110,7 +110,7 @@ class Sniffer:
             self.table.setItem(r, c, QTableWidgetItem(i))
 
     def load_cap(self, path):
-        self._capture_adaptor = pcap.open_offline(path, err_buf)
+        self._capture_adaptor = pcap.open_offline(ct.c_char_p(path.encode()), err_buf)
         if err_buf.value:
             print("error: open cap file:", path, err_buf.value, file=sys.stderr)
             return
