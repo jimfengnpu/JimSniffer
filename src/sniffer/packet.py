@@ -32,13 +32,14 @@ class Packet:
         self.start = 0
         self.parse()
 
-    def do_parse(self, protocol, raw, start, reassembled):
+    def do_parse(self, protocol, raw, start, reassembled, padding=0):
         next_proto = ""
         data = []
         data_cnt = []
         data_text = []
         node_text = []
         data_len = 0
+        _padding = 0
         if protocol and parse_option.get(protocol):
             option = parse_option.get(protocol)
             _data_len = option["len"]
@@ -76,7 +77,7 @@ class Packet:
                 if match:
                     break
             if not match:
-                return "", start
+                return "", start, _padding
 
         node = PacketProtocolInfo(" ".join(node_text), start, start + data_len, reassembled)
         if len(node_text) < 2:
@@ -86,26 +87,29 @@ class Packet:
         self.packet_info[protocol] = data
         self.protocol_info.append(node)
         self.info = " ".join(node_text[1:])
-        self.start = start + data_len
+        self.start = start + data_len + padding
         s = start
         for i, d in enumerate(data_text):
             cnt = data_cnt[i]
             node.addChild(PacketProtocolInfo(data_text[i], s, s + cnt, reassembled))
             s += cnt
+        if protocol == "IP":
+            _padding = len(raw) - start - data[2]
         # fragment
         if (protocol == "IP" and (data[4] & 0x6000) != 0x4000 and next_proto != "TCP") or protocol == "TCP":
             done = Packet._parse_fragment(self, protocol)
             if not done:
                 next_proto = ""
-        return next_proto, start + data_len
+        return next_proto, start + data_len + padding, _padding
 
     def parse(self, reassembled=False):
         proto = "Ethernet"
         start = 0
+        end = 0
         raw = self.get_raw(start, self.get_length(reassembled), reassembled)
         while True:
             _last_start = start
-            proto, start = self.do_parse(proto, raw, start, reassembled)
+            proto, start, end = self.do_parse(proto, raw, start, reassembled, end)
             if start == _last_start:
                 break
         if self.start < self.get_length():
@@ -173,11 +177,12 @@ class Packet:
                 syn = pack[2]
                 link_id = i
                 break
-        frag_info = (packet, seq, seq_nxt)
         if protocol == "TCP" and check_tcp_flag("Syn", packet.packet_info["TCP"][5]):
             if syn:
                 print("Error: multiple syn")
             syn = seq
+            seq_nxt += 1
+        frag_info = (packet, seq, seq_nxt)
         if not match:
             option["packets"].append(([frag_info, ], info, syn))
             return False
@@ -191,25 +196,35 @@ class Packet:
             if packets[i][2] < packets[i + 1][1]:
                 last_cont = i
                 break
-            length = min(packets[i + 1][1], packets[i][2]) - packets[i][1] + packets[i][0].start
+            if check_tcp_flag("Syn", packets[i][0].packet_info["TCP"][5]):
+                length = 0
+            else:
+                length = min(packets[i + 1][1], packets[i][2]) - packets[i][1]
             info_len += length
             data_info.append((packets[i][0].index, packets[i][0].start, length))
         else:
             last_cont = -1
+            length = packets[-1][2] - packets[-1][1]
+            info_len += length
+            data_info.append((packets[-1][0].index, packets[-1][0].start, length))
 
         if protocol == "TCP":
             # if TCP try parse
-            if len(data_info) == 1:
-                packets = packets[last_cont:]
-                return True
             raw = Packet._get_raw(data_info, 0, info_len)
-            _, _start = packets[last_cont][0].do_parse("", raw, 0, True)
+            _, _start, _pad = packets[last_cont][0].do_parse("", raw, 0, True)
             if _start:
-                packets[last_cont][0].data_info.append(*data_info)
+                seg = [str(i[0] + 1) for i in data_info]
+                packets[last_cont][0].protocol_info[-2].addChild(
+                    PacketProtocolInfo("[Segments: " + ",".join(seg) + "]",
+                                       0, info_len, True))
+                packets[last_cont][0].data_info += data_info
                 packets = packets[last_cont:]
+                return False
             if check_tcp_flag("Fin", packet.packet_info["TCP"][5]) \
                     or check_tcp_flag("Rst", packet.packet_info["TCP"][5]):
                 option["packets"].pop(link_id)
+                if len(data_info) == 1:
+                    return True
         else:
             if packets[-1][0].packet_info["IP"][4] & 0x6000 == 0:
                 option["packets"].pop(link_id)

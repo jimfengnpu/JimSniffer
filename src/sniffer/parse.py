@@ -45,11 +45,14 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
         _data_text.append(text)
         _len = re.match(r'[Cc]ontent-[Ll]ength: (\d+)', text)
         if _len:
-            content_len = _len.groups()[0]
+            content_len = int(_len.groups()[0])
         _data_cnt.append(end - start + 2)
         start = end + 2
     if len(raw) >= start + content_len:
         words = ["GET", "POST", "HEAD", "PUT", "DELETE", "HTTP"]
+        _data.append(raw[start: start + content_len])
+        _data_text.append("Body Data:")
+        _data_cnt.append(content_len)
         for w in words:
             if raw.find(w.encode('utf8')) == 0:
                 match = True

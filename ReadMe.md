@@ -18,13 +18,13 @@ TCP分段重组
 + 数据解析....developing
   + MAC解析...ok
   + IP层解析...ok
-  + TCP报头解析...todo
+  + TCP报头解析...ok
   + UDP报头解析...todo
   + ICMP报文解析...todo
   + ARP报文解析...todo
-  + HTTP报文解析...todo
-+ IP分片重组.....todo
-+ TCP分段重组.....todo
+  + HTTP报文解析...ok
++ IP分片重组.....ok
++ TCP分段重组.....ok
 + 数据查看及筛选.....todo
 
 
