@@ -68,7 +68,8 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
 FLAG_INFO = 0
 FLAG_DST = 1
 FLAG_SRC = 2
-FLAG_LEN = 3
+FLAG_HEADER = 3  # header len byte(next start)
+FLAG_LEN = 5  # total len byte (header + body), may produce padding for next level
 FLAG_PROTO = 4
 
 parse_option = {
@@ -88,9 +89,9 @@ parse_option = {
         "template": "!BBHHHBBH4s4s",
         "len": 20,
         "info": [
-            ["IPv{} Header Len: {} bytes", lambda x: [x // 16, 4 * (x % 16)], 1, (FLAG_LEN, 1)],
+            ["IPv{} Header Len: {} bytes", lambda x: [x // 16, 4 * (x % 16)], 1, (FLAG_HEADER, 1)],
             ["Type of Service: {}", lambda x: [hex(x)], 1],
-            ["Total Length: {}", lambda x: [x], 2],
+            ["Total Length: {}", lambda x: [x], 2, (FLAG_LEN, 0)],
             ["Identification: {}", lambda x: [hex(x)], 2],
             ["Flag: {} Offset: {}", lambda x: [ip_frag_flag.get(x & 0x6000) or "", 8 * (x & 0x1ff)], 2],
             ["Time to Live: {}", lambda x: [x], 1],
@@ -111,13 +112,23 @@ parse_option = {
             ["Dst port: {}", lambda x: [x], 2, (FLAG_INFO, 0)],
             ["Seq: {}", lambda x: [x], 4, (FLAG_INFO, 0)],
             ["Ack: {}", lambda x: [x], 4, (FLAG_INFO, 0)],
-            ["Header Len: {}", lambda x: [4 * (x >> 4)], 1, (FLAG_LEN, 0)],
+            ["Header Len: {}", lambda x: [4 * (x >> 4)], 1, (FLAG_HEADER, 0)],
             ["Flag:[{}]",
              lambda x: [",".join(
                  [tcp_flags[i] for i in range(len(tcp_flags)) if (format(ord(x), '08b')[-1-i] == "1")])], 1],
             ["Window: {}", lambda x: [x], 2],
             ["Checksum: {}", lambda x: [hex(x)], 2],
             ["Urgent Pointer: {}", lambda x: [x], 2]
+        ]
+    },
+    "UDP": {
+        "template": "!HHHH",
+        "len": 8,
+        "info": [
+            ["Src port: {}", lambda x: [x], 2, (FLAG_INFO, 0)],
+            ["Dst port: {}", lambda x: [x], 2, (FLAG_INFO, 0)],
+            ["Length: {}", lambda x: [x], 2, (FLAG_LEN, 0)],
+            ["Checksum: {}", lambda x: [hex(x)], 2]
         ]
     },
     "Any": {

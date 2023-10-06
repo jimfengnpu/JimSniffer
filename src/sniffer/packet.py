@@ -30,16 +30,16 @@ class Packet:
         Packet.raw_data.append(data)
         self.time = timestamp
         self.start = 0
+        self.end = len(data)
         self.parse()
 
-    def do_parse(self, protocol, raw, start, reassembled, padding=0):
+    def do_parse(self, protocol, raw, start, reassembled):
         next_proto = ""
         data = []
         data_cnt = []
         data_text = []
         node_text = []
         data_len = 0
-        _padding = 0
         if protocol and parse_option.get(protocol):
             option = parse_option.get(protocol)
             _data_len = option["len"]
@@ -58,9 +58,10 @@ class Packet:
                     elif tp == FLAG_SRC:
                         self.src.append(_data_info[i][pos])
                         node_text.append(_data_text[i])
-                    elif tp == FLAG_LEN:
+                    elif tp == FLAG_HEADER:
                         _data_len = _data_info[i][pos]
-                        pass
+                    elif tp == FLAG_LEN:
+                        self.end = start + _data_info[i][pos]
                     elif tp == FLAG_PROTO:
                         next_proto = _data_info[i][pos]
             data += _data
@@ -68,7 +69,7 @@ class Packet:
             data_text += _data_text
             data_len += _data_len
             if option.get("parser"):
-                data_len, _ = option["parser"](raw[start:], data, data_cnt, data_text, node_text)
+                data_len, _ = option["parser"](raw[start:self.end], data, data_cnt, data_text, node_text)
         else:
             match = False
             parsers = parse_option["Any"]["parsers"]
@@ -77,7 +78,7 @@ class Packet:
                 if match:
                     break
             if not match:
-                return "", start, _padding
+                return "", start
 
         node = PacketProtocolInfo(" ".join(node_text), start, start + data_len, reassembled)
         if len(node_text) < 2:
@@ -87,33 +88,30 @@ class Packet:
         self.packet_info[protocol] = data
         self.protocol_info.append(node)
         self.info = " ".join(node_text[1:])
-        self.start = start + data_len + padding
+        self.start = start + data_len
         s = start
         for i, d in enumerate(data_text):
             cnt = data_cnt[i]
             node.addChild(PacketProtocolInfo(data_text[i], s, s + cnt, reassembled))
             s += cnt
-        if protocol == "IP":
-            _padding = len(raw) - start - data[2]
         # fragment
         if (protocol == "IP" and (data[4] & 0x6000) != 0x4000 and next_proto != "TCP") or protocol == "TCP":
             done = Packet._parse_fragment(self, protocol)
             if not done:
-                next_proto = ""
-        return next_proto, start + data_len + padding, _padding
+                return next_proto, start
+        return next_proto, start + data_len
 
     def parse(self, reassembled=False):
         proto = "Ethernet"
         start = 0
-        end = 0
         raw = self.get_raw(start, self.get_length(reassembled), reassembled)
         while True:
             _last_start = start
-            proto, start, end = self.do_parse(proto, raw, start, reassembled, end)
+            proto, start = self.do_parse(proto, raw, start, reassembled)
             if start == _last_start:
                 break
-        if self.start < self.get_length():
-            cnt = self.get_length()
+        if self.start < self.end:
+            cnt = self.end
             self.protocol_info[-1].addChild(PacketProtocolInfo("Data:", start, cnt))
 
     def get_info(self):
@@ -165,7 +163,7 @@ class Packet:
         seq_option = option["offset"]
         seq_data = packet.packet_info[protocol][seq_option[0]]
         seq = seq_option[1](seq_data)
-        seq_nxt = (seq + (packet.get_length() - packet.start)) % (2 ** 32)
+        seq_nxt = (seq + (packet.end - packet.start)) % (2 ** 32)
         match = False
         packets = []
         syn = 0
@@ -185,7 +183,7 @@ class Packet:
         frag_info = (packet, seq, seq_nxt)
         if not match:
             option["packets"].append(([frag_info, ], info, syn))
-            return False
+            return True
         # insert
         packets.append(frag_info)
         packets.sort(key=lambda v: (v[1] - syn + 2 ** 32) % 2 ** 32)
@@ -201,21 +199,24 @@ class Packet:
             else:
                 length = min(packets[i + 1][1], packets[i][2]) - packets[i][1]
             info_len += length
-            data_info.append((packets[i][0].index, packets[i][0].start, length))
+            if length:
+                data_info.append((packets[i][0].index, packets[i][0].start, length))
         else:
             last_cont = -1
             length = packets[-1][2] - packets[-1][1]
             info_len += length
-            data_info.append((packets[-1][0].index, packets[-1][0].start, length))
-
+            if length:
+                data_info.append((packets[-1][0].index, packets[-1][0].start, length))
+        if len(data_info) == 1:
+            return True
         if protocol == "TCP":
             # if TCP try parse
             raw = Packet._get_raw(data_info, 0, info_len)
-            _, _start, _pad = packets[last_cont][0].do_parse("", raw, 0, True)
+            _, _start = packets[last_cont][0].do_parse("", raw, 0, True)
             if _start:
                 seg = [str(i[0] + 1) for i in data_info]
                 packets[last_cont][0].protocol_info[-2].addChild(
-                    PacketProtocolInfo("[Segments: " + ",".join(seg) + "]",
+                    PacketProtocolInfo("[Segment: " + ",".join(seg) + "]",
                                        0, info_len, True))
                 packets[last_cont][0].data_info += data_info
                 packets = packets[last_cont:]
@@ -223,9 +224,16 @@ class Packet:
             if check_tcp_flag("Fin", packet.packet_info["TCP"][5]) \
                     or check_tcp_flag("Rst", packet.packet_info["TCP"][5]):
                 option["packets"].pop(link_id)
-                if len(data_info) == 1:
-                    return True
         else:
             if packets[-1][0].packet_info["IP"][4] & 0x6000 == 0:
                 option["packets"].pop(link_id)
+                _start = 0
+                proto = packets[-1][0].packet_info["IP"][-4]
+                proto = protocol_ip.get(proto) or ""
+                raw = Packet._get_raw(data_info, 0, info_len)
+                while True:
+                    _last_start = _start
+                    proto, _start = packets[-1][0].do_parse(proto, raw, _start, True)
+                    if _start == _last_start:
+                        break
         return False
