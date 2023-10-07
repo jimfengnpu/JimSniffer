@@ -19,12 +19,50 @@ ip_frag_flag = {
     0: "No more Fragment"
 }
 
+icmp_type_code = {
+    0: {
+        0: "Echo (ping) reply"
+    },
+    3: {
+        0: "Network unreachable",
+        1: "Host unreachable",
+        2: "Protocol unreachable",
+        3: "Port unreachable",
+        4: "Fragmentation needed and DF set",
+        5: "Source route failed"
+    },
+    5: {
+        0: "Redirect for the Network",
+        1: "Redirect for the Host",
+        2: "Redirect for TOS and Network",
+        3: "Redirect for TOS and Host"
+    },
+    8: {
+        0: "Echo (ping) request"
+    },
+    11: {
+        0: "TTL exceeded in transit",
+        1: "Fragment reassembly time exceeded"
+    },
+    12: {
+        0: "IP Header parameter error",
+        1: "missing necessary option",
+        2: "unsupported length"
+    },
+    13: {
+        0: "Timestamp message"
+    },
+    14: {
+        0: "Timestamp reply message"
+    }
+}
+
 tcp_flags = ["Fin", "Syn", "Rst", "Psh", "Ack", "Urg"]
 
 
 def check_tcp_flag(flag: str, value: bytes):
     bit = tcp_flags.index(flag)
-    return format(ord(value), '08b')[-bit-1] == "1"
+    return format(ord(value), '08b')[-bit - 1] == "1"
 
 
 def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
@@ -65,6 +103,17 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
     return start + content_len, match
 
 
+def icmp_body_parser(raw: bytes, data, data_cnt, data_text, node_text):
+    type_code = data[0]
+    start = 4
+    data_len = 0
+    icmp_type, icmp_code = type_code >> 8, type_code & 255
+    if icmp_type == 0 or icmp_type == 8:
+
+        pass
+    return data_len, True
+
+
 FLAG_INFO = 0
 FLAG_DST = 1
 FLAG_SRC = 2
@@ -102,7 +151,13 @@ parse_option = {
         ]
     },
     "ICMP": {
-
+        "template": "!HH",
+        "len": 4,
+        "info": [
+            ["Type: {} Code: {} {}", lambda x: [x >> 8, x & 255, icmp_type_code.get(x >> 8).get(x & 255)], 2,
+             (FLAG_INFO, 2)],
+            ["Checksum: {}", lambda x: [hex(x)], 2]
+        ]
     },
     "TCP": {
         "template": "!HHIIBsHHH",
@@ -115,7 +170,7 @@ parse_option = {
             ["Header Len: {}", lambda x: [4 * (x >> 4)], 1, (FLAG_HEADER, 0)],
             ["Flag:[{}]",
              lambda x: [",".join(
-                 [tcp_flags[i] for i in range(len(tcp_flags)) if (format(ord(x), '08b')[-1-i] == "1")])], 1],
+                 [tcp_flags[i] for i in range(len(tcp_flags)) if (format(ord(x), '08b')[-1 - i] == "1")])], 1],
             ["Window: {}", lambda x: [x], 2],
             ["Checksum: {}", lambda x: [hex(x)], 2],
             ["Urgent Pointer: {}", lambda x: [x], 2]

@@ -61,7 +61,8 @@ class Packet:
                     elif tp == FLAG_HEADER:
                         _data_len = _data_info[i][pos]
                     elif tp == FLAG_LEN:
-                        self.end = start + _data_info[i][pos]
+                        if not reassembled:
+                            self.end = start + _data_info[i][pos]
                     elif tp == FLAG_PROTO:
                         next_proto = _data_info[i][pos]
             data += _data
@@ -69,7 +70,8 @@ class Packet:
             data_text += _data_text
             data_len += _data_len
             if option.get("parser"):
-                data_len, _ = option["parser"](raw[start:self.end], data, data_cnt, data_text, node_text)
+                _data_len, _ = option["parser"](raw[start:], data, data_cnt, data_text, node_text)
+                data_len += _data_len
         else:
             match = False
             parsers = parse_option["Any"]["parsers"]
@@ -88,7 +90,8 @@ class Packet:
         self.packet_info[protocol] = data
         self.protocol_info.append(node)
         self.info = " ".join(node_text[1:])
-        self.start = start + data_len
+        if not reassembled:
+            self.start = start + data_len
         s = start
         for i, d in enumerate(data_text):
             cnt = data_cnt[i]
@@ -111,8 +114,12 @@ class Packet:
             if start == _last_start:
                 break
         if self.start < self.end:
+            info = 0
+            for i, proto_info in enumerate(self.protocol_info):
+                if not proto_info.reassembled:
+                    info = i
             cnt = self.end
-            self.protocol_info[-1].addChild(PacketProtocolInfo("Data:", start, cnt))
+            self.protocol_info[info].addChild(PacketProtocolInfo("Data:", self.start, cnt))
 
     def get_info(self):
         return [
@@ -183,7 +190,6 @@ class Packet:
         frag_info = (packet, seq, seq_nxt)
         if not match:
             option["packets"].append(([frag_info, ], info, syn))
-            return True
         # insert
         packets.append(frag_info)
         packets.sort(key=lambda v: (v[1] - syn + 2 ** 32) % 2 ** 32)
@@ -194,7 +200,7 @@ class Packet:
             if packets[i][2] < packets[i + 1][1]:
                 last_cont = i
                 break
-            if check_tcp_flag("Syn", packets[i][0].packet_info["TCP"][5]):
+            if protocol == "TCP" and check_tcp_flag("Syn", packets[i][0].packet_info["TCP"][5]):
                 length = 0
             else:
                 length = min(packets[i + 1][1], packets[i][2]) - packets[i][1]
@@ -207,9 +213,9 @@ class Packet:
             info_len += length
             if length:
                 data_info.append((packets[-1][0].index, packets[-1][0].start, length))
-        if len(data_info) == 1:
-            return True
         if protocol == "TCP":
+            if len(data_info) == 1:
+                return True
             # if TCP try parse
             raw = Packet._get_raw(data_info, 0, info_len)
             _, _start = packets[last_cont][0].do_parse("", raw, 0, True)
@@ -225,9 +231,17 @@ class Packet:
                     or check_tcp_flag("Rst", packet.packet_info["TCP"][5]):
                 option["packets"].pop(link_id)
         else:
-            if packets[-1][0].packet_info["IP"][4] & 0x6000 == 0:
+            flag = packets[-1][0].packet_info["IP"][4] & 0x6000
+            if flag == 0:
                 option["packets"].pop(link_id)
+                if len(data_info) == 1:
+                    return True
                 _start = 0
+                frag = [str(i[0] + 1) for i in data_info]
+                packets[-1][0].protocol_info.append(
+                    PacketProtocolInfo("[Fragment: " + ",".join(frag) + "]",
+                                       0, info_len, True))
+                packets[-1][0].data_info += data_info
                 proto = packets[-1][0].packet_info["IP"][-4]
                 proto = protocol_ip.get(proto) or ""
                 raw = Packet._get_raw(data_info, 0, info_len)
