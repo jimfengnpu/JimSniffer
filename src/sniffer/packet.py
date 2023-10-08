@@ -75,16 +75,17 @@ class Packet:
         else:
             match = False
             parsers = parse_option["Any"]["parsers"]
-            for parser in parsers:
-                data_len, match = parser(raw[start:], data, data_cnt, data_text, node_text)
-                if match:
-                    break
+            for parser, cond in parsers:
+                if cond[0] in self.protocol:
+                    s_port, d_port = self.packet_info[cond[0]][0], self.packet_info[cond[0]][1]
+                    if len(cond) == 1 or s_port in cond[1:] or d_port in cond[1:]:
+                        data_len, match = parser(raw[start:], data, data_cnt, data_text, node_text)
+                        if match:
+                            break
             if not match:
                 return "", start
 
         node = PacketProtocolInfo(" ".join(node_text), start, start + data_len, reassembled)
-        if len(node_text) < 2:
-            print("break")
 
         self.protocol.append(node_text[0])
         self.packet_info[protocol] = data
@@ -98,7 +99,7 @@ class Packet:
             node.addChild(PacketProtocolInfo(data_text[i], s, s + cnt, reassembled))
             s += cnt
         # fragment
-        if (protocol == "IP" and (data[4] & 0x6000) != 0x4000 and next_proto != "TCP") or protocol == "TCP":
+        if (protocol == "IP" and data[4] and ((data[4] & 0x6000) != 0x4000)) or protocol == "TCP":
             done = Packet._parse_fragment(self, protocol)
             if not done:
                 return next_proto, start

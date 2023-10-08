@@ -1,3 +1,5 @@
+import os
+
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import QFont, QTextCursor
 from PyQt5.QtWidgets import QTreeWidgetItem
@@ -19,6 +21,7 @@ class Main(QMainWindow):
         v_layout = QVBoxLayout(central_widget)
         self.menu = QMenuBar(self)
         self.setMenuBar(self.menu)
+        self.file_menu = self.menu.addMenu("&File")
         self.toolBar = QToolBar(self)
         self.addToolBar(self.toolBar)
         self.devSelector = QComboBox(self)
@@ -58,6 +61,7 @@ class Main(QMainWindow):
         self.packetView.horizontalHeader().setStretchLastSection(True)
         self.protocolView.header().setVisible(False)
         self.protocolView.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.set_menu()
         self.set_controller()
         self.update_devices()
         self.update_state()
@@ -75,14 +79,22 @@ class Main(QMainWindow):
         listening = self.sniffer.is_listening
         self.startBtn.setDisabled(listening)
         self.devSelector.setDisabled(listening)
+        self.file_menu.setDisabled(listening)
         self.endBtn.setEnabled(listening)
 
     def set_controller(self):
         self.devSelector.currentIndexChanged.connect(self.sniffer.set_device)
-        self.startBtn.clicked.connect(lambda: (self.sniffer.load_cap("/home/jimfeng/ping.pcap"), self.update_state()))
+        self.startBtn.clicked.connect(lambda: (self.sniffer.start_listening(), self.update_state()))
         self.endBtn.clicked.connect(lambda: (self.sniffer.stop_listening(), self.update_state()))
         self.packetView.cellClicked.connect(lambda r, c: self.on_packet_selected(r))
         self.protocolView.itemSelectionChanged.connect(lambda: self.on_info_selected())
+
+    def set_menu(self):
+        save_file_action = QAction("Save File", self)
+        save_file_action.triggered.connect(self.on_action_save)
+        self.file_menu.addAction(save_file_action)
+        load_file_action = QAction("Load File", self)
+        self.file_menu.addAction(load_file_action)
 
     def on_packet_selected(self, index):
         if index >= len(self.sniffer.packet_list):
@@ -109,6 +121,13 @@ class Main(QMainWindow):
         cursor.setPosition(info.start * 3)
         cursor.setPosition(info.end * 3 - 1, QTextCursor.KeepAnchor)
         self.hexDataView.setTextCursor(cursor)
+
+    def on_action_save(self):
+        file_name, _ = QFileDialog.getSaveFileName(self, "保存文件", os.getcwd(), "Pcap dump File(*.pcap)")
+        if file_name:
+            self.sniffer.save_cap(file_name)
+
+    def on_action_load(self):
         pass
 
 

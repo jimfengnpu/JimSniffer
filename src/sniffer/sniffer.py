@@ -99,7 +99,6 @@ class Sniffer:
     def packet_handler(self, user, header, data):
         if user:
             pcap.dump(user, header, data)
-        print(header.contents.caplen)
         packet = Packet(len(self.packet_list), bytes(ct.pointer(data.contents)[:header.contents.caplen]),
                         header.contents.ts.tv_sec)
         self.packet_list.append(packet)
@@ -117,4 +116,12 @@ class Sniffer:
         self.start_capture()
 
     def save_cap(self, path):
+        print("save file: ", self._tmp_dump_file, ">>", path)
         copyfile(self._tmp_dump_file, path)
+
+    def clear(self):
+        if self.is_listening:
+            return  # protect prog
+        self.table.clear()
+        self.packet_list.clear()
+

@@ -1,9 +1,13 @@
 import socket
 import re
+import struct
 
 protocol_ethernet = {
     b'\x08\x00': "IP",
-    b'\x08\x06': "ARP"
+    b'\x08\x06': "ARP",
+    b'\x81\x00': "VLAN",
+    b'\x86\xdd': "IPV6",
+    b'\x90\x00': "LOOPBACK",
 }
 
 protocol_ip = {
@@ -17,6 +21,17 @@ ip_frag_flag = {
     0x4000: "Don't Fragment",
     0x2000: "More Fragment",
     0: "No more Fragment"
+}
+
+arp_h_type = {
+    1: "Ethernet"
+}
+
+arp_op = {
+    1: "arp request",
+    2: "arp reply",
+    3: "rarp request",
+    4: "rarp reply"
 }
 
 icmp_type_code = {
@@ -88,9 +103,10 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
         start = end + 2
     if len(raw) >= start + content_len:
         words = ["GET", "POST", "HEAD", "PUT", "DELETE", "HTTP"]
-        _data.append(raw[start: start + content_len])
-        _data_text.append("Body Data:")
-        _data_cnt.append(content_len)
+        if content_len:
+            _data.append(raw[start: start + content_len])
+            _data_text.append("Body Data:")
+            _data_cnt.append(content_len)
         for w in words:
             if raw.find(w.encode('utf8')) == 0:
                 match = True
@@ -103,14 +119,24 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
     return start + content_len, match
 
 
+def dns_parser(raw: bytes, data, data_cnt, data_text, node_text):
+
+    pass
+
+
 def icmp_body_parser(raw: bytes, data, data_cnt, data_text, node_text):
     type_code = data[0]
     start = 4
     data_len = 0
     icmp_type, icmp_code = type_code >> 8, type_code & 255
-    if icmp_type == 0 or icmp_type == 8:
-
-        pass
+    if icmp_type in [0, 8, 13, 14]:
+        ident, seq = struct.unpack("!HH", raw[start:start + 4])
+        data += [ident, seq]
+        data_cnt += [2, 2]
+        data_text += ["Id: {}".format(ident), "Seq: {}".format(seq)]
+    # elif icmp_type == 12:
+    #
+    #     pass
     return data_len, True
 
 
@@ -132,6 +158,21 @@ parse_option = {
             ["Dst: {}", lambda x: [bytes.hex(x, ":")], 6, (FLAG_DST, 0)],
             ["Src: {}", lambda x: [bytes.hex(x, ":")], 6, (FLAG_SRC, 0)],
             ["Protocol: {}", lambda x: [protocol_ethernet.get(x) or ""], 2, (FLAG_PROTO, 0)]
+        ]
+    },
+    "ARP": {
+        "template": "!H2sBBH6s4s6s4s",
+        "len": 28,
+        "info": [
+            ["Hardware type: {}", lambda x: [arp_h_type.get(x) or ""], 2],
+            ["Protocol type: {}", lambda x: [protocol_ethernet.get(x) or ""], 2],
+            ["Hardware size: {}", lambda x: [x], 1],
+            ["Protocol size: {}", lambda x: [x], 1],
+            ["Op: {}", lambda x: [arp_op.get(x) or ""], 2],
+            ["Sender MAC: {}", lambda x: [bytes.hex(x, ":")], 6],
+            ["Sender IP: {}", lambda x: [socket.inet_ntoa(x)], 4],
+            ["Target MAC: {}", lambda x: [bytes.hex(x, ":")], 6],
+            ["Target IP: {}", lambda x: [socket.inet_ntoa(x)], 4],
         ]
     },
     "IP": {
@@ -157,7 +198,8 @@ parse_option = {
             ["Type: {} Code: {} {}", lambda x: [x >> 8, x & 255, icmp_type_code.get(x >> 8).get(x & 255)], 2,
              (FLAG_INFO, 2)],
             ["Checksum: {}", lambda x: [hex(x)], 2]
-        ]
+        ],
+        "parser": icmp_body_parser
     },
     "TCP": {
         "template": "!HHIIBsHHH",
@@ -188,7 +230,8 @@ parse_option = {
     },
     "Any": {
         "parsers": [
-            http_parser
+            (http_parser, ["TCP", ]),
+            (dns_parser, ["UDP", 53])
         ]
     }
 }
