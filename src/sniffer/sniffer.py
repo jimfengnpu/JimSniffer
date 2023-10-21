@@ -6,7 +6,7 @@ import sys
 from shutil import copyfile
 import ctypes as ct
 
-from PyQt5.QtWidgets import QTableWidget, QTableWidgetItem
+from PyQt5.QtCore import QAbstractTableModel, QModelIndex, Qt, QVariant
 
 from .packet import Packet
 
@@ -15,12 +15,11 @@ pcap.config(LIBPCAP=lib_name)
 err_buf = ct.create_string_buffer(pcap.PCAP_ERRBUF_SIZE + 1)
 
 
-# noinspection PyTypeChecker
-class Sniffer:
+class Sniffer(QAbstractTableModel):
 
-    def __init__(self, table):
-        super().__init__()
-        self.table: QTableWidget = table
+    def __init__(self, parent=None):
+        super().__init__(parent=parent)
+        # self.table: QTableView = table
         self._capture_adaptor = None
         self._devices = ct.POINTER(pcap.pcap_if_t)()
         self._current_device = ct.POINTER(pcap.pcap_if_t)()
@@ -30,7 +29,10 @@ class Sniffer:
         self.device_cnt = 0
         self.current_device_index = 0
         self.is_listening = False
-        self.packet_list = []
+        self.packet_list: list[Packet] = []
+        self.header = [
+            "No.", "Src", "Dst", "Protocol", "Length", "Info"
+        ]
 
     def load_devices(self):
         pcap.findalldevs(ct.byref(self._devices), err_buf)
@@ -101,12 +103,10 @@ class Sniffer:
             pcap.dump(user, header, data)
         packet = Packet(len(self.packet_list), bytes(ct.pointer(data.contents)[:header.contents.caplen]),
                         header.contents.ts.tv_sec)
+        r = self.rowCount()
+        self.beginInsertRows(QModelIndex(), r, r)
         self.packet_list.append(packet)
-        # print(packet.time, packet.data[0])
-        r = self.table.rowCount()
-        self.table.insertRow(r)
-        for c, i in enumerate(packet.get_info()):
-            self.table.setItem(r, c, QTableWidgetItem(i))
+        self.endInsertRows()
 
     def load_cap(self, path):
         self._capture_adaptor = pcap.open_offline(ct.c_char_p(path.encode()), err_buf)
@@ -122,6 +122,24 @@ class Sniffer:
     def clear(self):
         if self.is_listening:
             return  # protect prog
-        self.table.clear()
+        # self.table.clear()
         self.packet_list.clear()
 
+    def data(self, index: QModelIndex, role: int = ...):
+        if role == Qt.DisplayRole:
+            row = index.row()
+            col = index.column()
+            packet: Packet = self.packet_list[row]
+            return packet.get_info(col)
+        return QVariant()
+
+    def rowCount(self, parent: QModelIndex = ...) -> int:
+        return len(self.packet_list)
+
+    def columnCount(self, parent: QModelIndex = ...) -> int:
+        return 6
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = ...):
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole:
+            return self.header[section]
+        return QVariant()

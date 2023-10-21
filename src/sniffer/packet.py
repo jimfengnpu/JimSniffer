@@ -122,15 +122,19 @@ class Packet:
             cnt = self.end
             self.protocol_info[info].addChild(PacketProtocolInfo("Data:", self.start, cnt))
 
-    def get_info(self):
-        return [
-            str(self.index + 1),
-            self.src[-1] if len(self.src) else "",
-            self.dst[-1] if len(self.dst) else "",
-            self.protocol[-1] if len(self.protocol) else "",
-            str(self.data_info[0][2]),
-            self.info
-        ]
+    def get_info(self, col=0):
+        if col == 0:
+            return str(self.index + 1)
+        elif col == 1:
+            return self.src[-1] if len(self.src) else ""
+        elif col == 2:
+            return self.dst[-1] if len(self.dst) else ""
+        elif col == 3:
+            return self.protocol[-1] if len(self.protocol) else ""
+        elif col == 4:
+            return str(self.data_info[0][2])
+        else:
+            return self.info
 
     def get_hex(self, start, end, reassembled=False):
         return self.get_raw(start, end, reassembled).hex(" ")
