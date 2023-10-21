@@ -231,7 +231,7 @@ parse_option = {
     "Any": {
         "parsers": [
             (http_parser, ["TCP", ]),
-            (dns_parser, ["UDP", 53])
+            # (dns_parser, ["UDP", 53])
         ]
     }
 }

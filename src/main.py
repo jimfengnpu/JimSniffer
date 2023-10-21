@@ -13,7 +13,7 @@ DST_COLUMN = 2
 
 class Main(QMainWindow):
     def __init__(self):
-        super().__init__()
+        super().__init__(parent=None)
         self.setWindowTitle("Jim Sniffer")
         self.setGeometry(300, 300, 1000, 700)
         central_widget = QWidget(self)
@@ -32,7 +32,7 @@ class Main(QMainWindow):
         self.hexDataView = QTextEdit(self)
         self.sniffer = Sniffer(self.packetView)
         dock_layout = QHBoxLayout()
-        v_layout.addWidget(self.packetView)
+        v_layout.addWidget(self.packetView, alignment=None)
         v_layout.addLayout(dock_layout)
         self.toolBar.addWidget(self.devSelector)
         self.toolBar.addWidget(self.startBtn)
@@ -94,6 +94,7 @@ class Main(QMainWindow):
         save_file_action.triggered.connect(self.on_action_save)
         self.file_menu.addAction(save_file_action)
         load_file_action = QAction("Load File", self)
+        load_file_action.triggered.connect(self.on_action_load)
         self.file_menu.addAction(load_file_action)
 
     def on_packet_selected(self, index):
@@ -128,7 +129,9 @@ class Main(QMainWindow):
             self.sniffer.save_cap(file_name)
 
     def on_action_load(self):
-        pass
+        file_name, _ = QFileDialog.getOpenFileName(self, "载入文件", os.getcwd(), "Pcap dump File(*.pcap)")
+        if file_name:
+            self.sniffer.load_cap(file_name)
 
 
 if __name__ == "__main__":
