@@ -149,13 +149,19 @@ class Main(QMainWindow):
             self.sniffer.save_cap(file_name)
 
     def on_action_load(self):
+        if not self.sniffer.is_file and self.sniffer.rowCount():
+            if not self.check_confirm():
+                return
         file_name, _ = QFileDialog.getOpenFileName(self, "载入文件", os.getcwd(), "Pcap dump File(*.pcap)")
         if file_name:
+            self.sniffer.clear()
             self.sniffer.load_cap(file_name)
 
     def on_action_start(self):
-        # if not self.sniffer.is_listening and self.sniffer.rowCount():
-
+        if not self.sniffer.is_file and self.sniffer.rowCount():
+            if not self.check_confirm():
+                return
+        self.sniffer.clear()
         self.sniffer.start_listening()
         self.update_state()
 
@@ -163,6 +169,14 @@ class Main(QMainWindow):
         self.sniffer.stop_listening()
         self.update_state()
 
+    def check_confirm(self):
+        res = QMessageBox.question(self, "提示", "是否保存已有数据包？\nSave 保存, Discard 不保存,继续, Cancel 取消",
+                                   QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+        if res == QMessageBox.Cancel:
+            return False
+        elif res == QMessageBox.Save:
+            self.on_action_save()
+        return True
 
     def on_filter_apply(self, start=0):
         for i in range(start, self.sniffer.rowCount()):

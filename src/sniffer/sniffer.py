@@ -29,6 +29,7 @@ class Sniffer(QAbstractTableModel):
         self.device_cnt = 0
         self.current_device_index = 0
         self.is_listening = False
+        self.is_file = False
         self.packet_list: list[Packet] = []
         self.header = [
             "No.", "Src", "Dst", "Protocol", "Length", "Info"
@@ -73,6 +74,7 @@ class Sniffer(QAbstractTableModel):
                   pcap.datalink_val_to_description_or_dlt(link_type).decode('utf-8'))
         self._tmp_dump_file = "/tmp/cap_temp.cap"
         self.is_listening = True
+        self.is_file = False
         self.start_capture()
 
     def stop_listening(self):
@@ -113,9 +115,12 @@ class Sniffer(QAbstractTableModel):
         if err_buf.value:
             print("error: open cap file:", path, err_buf.value, file=sys.stderr)
             return
+        self.is_file = True
         self.start_capture()
 
     def save_cap(self, path):
+        if not self._tmp_dump_file:
+            return
         print("save file: ", self._tmp_dump_file, ">>", path)
         copyfile(self._tmp_dump_file, path)
 
@@ -123,7 +128,10 @@ class Sniffer(QAbstractTableModel):
         if self.is_listening:
             return  # protect prog
         # self.table.clear()
+        self.beginResetModel()
         self.packet_list.clear()
+        Packet.raw_data.clear()
+        self.endResetModel()
 
     def data(self, index: QModelIndex, role: int = ...):
         if role == Qt.DisplayRole:
