@@ -80,6 +80,12 @@ def check_tcp_flag(flag: str, value: bytes):
     return format(ord(value), '08b')[-bit - 1] == "1"
 
 
+#  parser function: xxx_parser(raw: bytes, data: list, data_cnt: list[int], data_text: list[str],
+#                               node_text: list[str]) -> tuple[length:int, match:bool]
+#  params: $raw:data to parse, $data:raw part seperated according to format
+#           $data_cnt: length for pieces in $data, $data_text: str transformed from $data for display
+#           $node_text: info directly shown after protocol, which will be joint together
+#  return: $length of parsed data, offset of next start, $match whether the protocol is accepted
 def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
     content_len = 0
     match = False
@@ -90,7 +96,7 @@ def http_parser(raw: bytes, data, data_cnt, data_text, node_text):
     _node_text = ["HTTP"]
     while True:
         end = raw.find(b'\x0d\x0a', start)
-        if end == -1:
+        if end == -1 or end == start:
             break
         info = raw[start:end]
         _data.append(info)
