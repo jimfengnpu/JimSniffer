@@ -1,7 +1,6 @@
 import threading
 
 import libpcap as pcap
-import platform
 import sys
 from shutil import copyfile
 import ctypes as ct
@@ -10,7 +9,8 @@ from PyQt5.QtCore import QAbstractTableModel, QModelIndex, Qt, QVariant
 
 from .packet import Packet
 
-lib_name = "wpcap" if (platform.system() == "Windows") else "tcpdump"
+# lib_name = "npcap"  #  npcap | wpcap | tcpdump | lib abs path
+lib_name = None  # default auto (by path env)
 pcap.config(LIBPCAP=lib_name)
 err_buf = ct.create_string_buffer(pcap.PCAP_ERRBUF_SIZE + 1)
 
@@ -63,7 +63,7 @@ class Sniffer(QAbstractTableModel):
             _dev = _dev.contents.next
         return info
 
-    def start_listening(self):
+    def start_listening(self):  # called when start realtime capture
         self._capture_adaptor = pcap.open_live(self._current_device.contents.name, 65536, 1, 1000, err_buf)
         if err_buf.value:
             print("open failed:", err_buf.value, file=sys.stderr)
@@ -72,7 +72,7 @@ class Sniffer(QAbstractTableModel):
         if link_type != 1:
             print("Warning: Non-Ethernet interface detected, Link type:",
                   pcap.datalink_val_to_description_or_dlt(link_type).decode('utf-8'))
-        self._tmp_dump_file = "/tmp/cap_temp.cap"
+        self._tmp_dump_file = "/tmp/cap_temp.cap"  # filename for temp file
         self.is_listening = True
         self.is_file = False
         self.start_capture()
@@ -82,6 +82,7 @@ class Sniffer(QAbstractTableModel):
         pcap.breakloop(self._capture_adaptor)
         self._t_capture.join()
 
+    #  common interface for capture and load cap file
     def start_capture(self):
         if self._tmp_dump_file:
             self._dumper = pcap.dump_open(self._capture_adaptor,
@@ -90,10 +91,10 @@ class Sniffer(QAbstractTableModel):
         self._t_capture.start()
 
     def capture_run(self):
-        dumper = None
+        dumper = None  # dumper will pass as user
         if self._dumper:
             dumper = ct.cast(self._dumper, ct.POINTER(ct.c_ubyte))
-        print("running")
+        print("start capture...")
         pcap.loop(self._capture_adaptor, ct.c_int(0), pcap.pcap_handler(self.packet_handler), dumper)
         pcap.close(self._capture_adaptor)
         if dumper:
@@ -104,9 +105,9 @@ class Sniffer(QAbstractTableModel):
         if user:
             pcap.dump(user, header, data)
         packet = Packet(len(self.packet_list), bytes(ct.pointer(data.contents)[:header.contents.caplen]),
-                        header.contents.ts.tv_sec)
+                        header.contents.ts.tv_sec)  # create and parse packet data
         r = self.rowCount()
-        self.beginInsertRows(QModelIndex(), r, r)
+        self.beginInsertRows(QModelIndex(), r, r)  # update model data and tell ui to update
         self.packet_list.append(packet)
         self.endInsertRows()
 
@@ -133,7 +134,7 @@ class Sniffer(QAbstractTableModel):
         Packet.raw_data.clear()
         self.endResetModel()
 
-    def data(self, index: QModelIndex, role: int = ...):
+    def data(self, index: QModelIndex, role: int = ...):  # called everytime ui update to get new content
         if role == Qt.DisplayRole:
             row = index.row()
             col = index.column()

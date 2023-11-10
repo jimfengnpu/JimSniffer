@@ -72,6 +72,7 @@ class Main(QMainWindow):
         self.packetView.setShowGrid(False)
         self.packetView.horizontalHeader().setDefaultSectionSize(80)
         self.packetView.verticalHeader().setVisible(False)
+        # self.packetView.verticalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.packetView.setColumnWidth(SRC_COLUMN, 160)
         self.packetView.setColumnWidth(DST_COLUMN, 160)
         self.packetView.horizontalHeader().setStretchLastSection(True)
@@ -169,7 +170,7 @@ class Main(QMainWindow):
         self.sniffer.stop_listening()
         self.update_state()
 
-    def check_confirm(self):
+    def check_confirm(self):  # called when start clicked and unsaved(live) data exists
         res = QMessageBox.question(self, "提示", "是否保存已有数据包？\nSave 保存, Discard 不保存,继续, Cancel 取消",
                                    QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
         if res == QMessageBox.Cancel:

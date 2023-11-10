@@ -1,0 +1,2 @@
+libpcap==1.11.0b7
+PyQt5

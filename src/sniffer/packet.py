@@ -1,6 +1,5 @@
-import struct
-
 from PyQt5.QtWidgets import QTreeWidgetItem
+
 from .parse import *
 
 
@@ -188,8 +187,8 @@ class Packet:
                 link_id = i
                 break
         if protocol == "TCP" and check_tcp_flag("Syn", packet.packet_info["TCP"][5]):
-            if syn:
-                print("Error: multiple syn")
+            if syn and seq != syn:
+                print("Error: multiple syn", [str(pack[0].index+1) for pack in packets], packet.index+1)
             syn = seq
             seq_nxt += 1
         frag_info = (packet, seq, seq_nxt)
